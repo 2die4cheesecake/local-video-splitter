@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Video Splitter - No Server Upload</title>
+    <!-- <script src="https://cdn.tailwindcss.com"></script> -->
+    <link rel="stylesheet" href="./output.css">
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.11.6/dist/util.min.js"></script>
+    <style>
+        .dropzone {
+            border: 2px dashed #9CA3AF;
+            transition: all 0.3s ease;
+        }
+
+        .dropzone.active {
+            border-color: #3B82F6;
+            background-color: #EFF6FF;
+        }
+
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+
+        #preview {
+            max-height: 300px;
+        }
+
+        .time-input {
+            width: 60px;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-blue-600 mb-2">Local Video Splitter</h1>
+            <p class="text-gray-600">Split videos directly in your browser without uploading to any server</p>
+        </header>
+
+        <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6">
+            <div class="grid md:grid-cols-2 gap-8">
+                <!-- File Upload Section -->
+                <div>
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">1. Select Video</h2>
+                    <div id="dropzone" class="dropzone rounded-lg p-8 text-center cursor-pointer mb-4">
+                        <div class="flex flex-col items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-gray-400 mb-2" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <p class="text-gray-600">Drag & drop your video file here</p>
+                            <p class="text-sm text-gray-500 mt-1">or click to browse</p>
+                        </div>
+                        <input type="file" id="fileInput" class="hidden" accept="video/*">
+                    </div>
+
+                    <div id="fileInfo" class="hidden bg-gray-100 rounded-lg p-4 mb-4">
+                        <div class="flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500 mr-2"
+                                viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd"
+                                    d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"
+                                    clip-rule="evenodd" />
+                            </svg>
+                            <span id="fileName" class="font-medium"></span>
+                        </div>
+                        <div class="flex items-center mt-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500 mr-2"
+                                viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd"
+                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                                    clip-rule="evenodd" />
+                            </svg>
+                            <span id="fileDuration" class="text-sm text-gray-600"></span>
+                        </div>
+                    </div>
+
+                    <div id="videoPreview" class="hidden">
+                        <video id="preview" controls class="w-full rounded-lg"></video>
+                    </div>
+                </div>
+
+                <!-- Split Options Section -->
+                <div>
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">2. Split Options</h2>
+
+                    <div class="mb-4">
+                        <label class="block text-gray-700 mb-2">Split Method</label>
+                        <div class="flex space-x-4">
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="splitMethod" value="duration" checked
+                                    class="form-radio text-blue-600">
+                                <span class="ml-2">By Duration</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="splitMethod" value="segments"
+                                    class="form-radio text-blue-600">
+                                <span class="ml-2">By Segments</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="durationOptions" class="mb-4">
+                        <label class="block text-gray-700 mb-2">Split every (seconds)</label>
+                        <input type="number" id="splitDuration" min="1" value="10"
+                            class="border rounded px-3 py-2 w-20">
+                    </div>
+
+                    <div id="segmentsOptions" class="mb-4 hidden">
+                        <label class="block text-gray-700 mb-2">Add Split Points</label>
+                        <div class="flex items-center mb-2">
+                            <input type="number" id="segmentTime" min="0" value="0"
+                                class="border rounded px-3 py-2 w-20 mr-2">
+                            <button id="addSegment" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded">
+                                Add Point
+                            </button>
+                        </div>
+                        <div id="segmentList" class="bg-gray-100 rounded p-2 max-h-24 overflow-y-auto">
+                            <p class="text-gray-500 text-sm">No split points added</p>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-gray-700 mb-2">Output Format</label>
+                        <select id="outputFormat" class="border rounded px-3 py-2 w-full">
+                            <option value="mp4">MP4</option>
+                            <option value="webm">WebM</option>
+                            <option value="mov">MOV</option>
+                            <option value="mkv">MKV</option>
+                        </select>
+                    </div>
+
+                    <button id="splitButton" disabled
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20"
+                            fill="currentColor">
+                            <path fill-rule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                                clip-rule="evenodd" />
+                        </svg>
+                        Split Video
+                    </button>
+
+                    <div id="progressContainer" class="mt-4 hidden">
+                        <div class="flex justify-between mb-1">
+                            <span class="text-sm font-medium text-gray-700">Processing...</span>
+                            <span id="progressPercent" class="text-sm font-medium text-gray-700">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div id="progressBar" class="progress-bar bg-blue-600 h-2.5 rounded-full" style="width: 0%">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="results" class="mt-8 hidden">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">3. Download Results</h2>
+                <div id="downloadList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Results will appear here -->
+                </div>
+            </div>
+        </div>
+
+        <footer class="mt-12 text-center text-gray-500 text-sm">
+            <p>All processing happens locally in your browser. No files are uploaded to any server.</p>
+            <p class="mt-1">Powered by FFmpeg.wasm</p>
+        </footer>
+    </div>
+
+    <script src="./lvc.js"></script>
+</body>
+
+</html>
