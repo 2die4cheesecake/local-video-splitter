@@ -29,6 +29,5 @@ func main() {
 		fs.ServeHTTP(w, r)
 	})))
 
-	log.Println("Server running at http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":8000", nil))
 }
